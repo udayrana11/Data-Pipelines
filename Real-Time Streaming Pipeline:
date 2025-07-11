@@ -1,0 +1,94 @@
+**Real-Time Streaming Pipeline: Recommendations, Fraud Scoring & Live Dashboards**
+
+---
+
+## 1. Executive Summary
+
+To enhance customer experience and mitigate risk, the platform ingests user interactions and transaction events in real time, powering **personalized recommendations**, **fraud detection**, and **live operational dashboards**. This white-paper README outlines the high-level design, non-functional requirements, technology trade-offs, performance and cost estimates, monitoring strategy, and future roadmap—tailored for AI Product Management stakeholders.
+
+---
+
+## 2. Architecture Overview
+
+![Real-Time Streaming Architecture](./diagrams/realtime_streaming_architecture.png)
+
+* **Data Ingestion:** User events (clicks, views, purchases) → Amazon Kinesis Data Streams
+* **Processing & Enrichment:** AWS Lambda Functions subscribe to Kinesis shards, enrich events with user metadata and feature calculations
+* **Stream Bus:** Apache Kafka (MSK) replicates enriched events for downstream consumers
+* **Stateful Storage:** Apache Druid ingests batches from Kafka for OLAP queries and time-series analytics
+* **Consumers:**
+
+  1. **Recommendation Engine** subscribes to Kafka topic for near-immediate model updates
+  2. **Fraud Scoring Service** applies ML models via Lambda on high-value transactions
+  3. **Live Dashboards** (e.g., Superset or custom UI) query Druid for real-time metrics
+
+---
+
+## 3. Key Requirements & SLAs
+
+| Requirement               | Target                                       |
+| ------------------------- | -------------------------------------------- |
+| **Throughput**            | 50,000 events/sec                            |
+| **Enrichment Latency**    | ≤ 200 ms per event                           |
+| **End-to-End Latency**    | ≤ 1 sec (Kinesis → Dashboard update)         |
+| **Query Concurrency**     | 200 concurrent dashboard queries             |
+| **Availability**          | 99.99% uptime                                |
+| **Cost Envelope**         | ≤ \$2,500/month AWS + MSK & Druid costs      |
+| **Failure Tolerance**     | At-least-once delivery; DLQs for errors      |
+| **Security & Compliance** | Encryption in motion & at rest; IAM policies |
+
+---
+
+## 4. Trade-off Analysis
+
+| Component            | Option A             | Option B                       | Decision & Rationale                                                                                                                                  |
+| -------------------- | -------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stream Ingestion** | Kinesis Data Streams | Kafka (MSK)                    | **Kinesis chosen**<br>Fully managed, auto-scaling, seamless AWS integration; MSK added later for cross-region replication and specialized use cases.  |
+| **Processing Layer** | AWS Lambda           | Kinesis Data Analytics / Flink | **Lambda chosen**<br>Serverless simplicity for feature enrichment at scale; KDA evaluated for complex stateful computations in next phase.            |
+| **Message Bus**      | MSK (Kafka)          | Kinesis Data Firehose          | **MSK chosen**<br>Enables durable pub/sub for multiple consumers, partitioning control, and ecosystem integrations (e.g. Druid ingestion connectors). |
+| **Analytics Store**  | Apache Druid         | Redshift / Snowflake           | **Druid chosen**<br>Sub-second OLAP queries on high-cardinality time-series data, optimized for live dashboards and ad-hoc slice-and-dice.            |
+
+---
+
+## 5. End-to-End Latency & Cost Estimate
+
+* **Kinesis ingestion:** \~50 ms
+* **Lambda enrichment:** \~150 ms
+* **Kafka replication:** \~50 ms
+* **Druid ingestion & indexing:** \~500 ms (approx. per batch)
+* **Dashboard query:** \~200 ms
+
+**Total pipeline latency:** \~950 ms
+
+**Monthly Spend Estimate:**
+
+* Kinesis Data Streams (5 shards): \~\$300
+* Lambda invocations (100M/month): \~\$400
+* MSK cluster (3 brokers): \~\$600
+* Druid cluster (m5.large x3): \~\$800
+* Data transfer & storage: \~\$200
+
+> **Total:** \~\$2,300/month *(scales with shard count and cluster sizing)*
+
+---
+
+## 6. Monitoring & Alerts
+
+* **Metrics:** CloudWatch for Kinesis, Lambda metrics; MSK JMX metrics; Druid metrics for ingestion and query latencies
+* **Logs:** Centralized in CloudWatch Logs and Elasticsearch for advanced tracing
+* **Alerts:** SNS notifications on:
+
+  * Lambda error rates >1%
+  * Kinesis iterator age >1 min
+  * MSK under-replicated partitions >0
+  * Druid ingestion or query failures
+
+---
+
+## 7. Next Steps & Roadmap
+
+1. **Stateful Stream Processing:** Evaluate Apache Flink or Kinesis Data Analytics for windowed aggregations (e.g., sessionization).
+2. **Feature Store Integration:** Publish enriched features to a feature store (e.g., SageMaker Feature Store) for unified model training and inference.
+3. **Cross-Region Replication:** Enhance resiliency and global consistency by replicating streams via MSK MirrorMaker or Global Kinesis.
+4. **Cost Optimization:** Implement adaptive shard scaling on Kinesis and auto-scaling for MSK & Druid clusters.
+5. **Enhanced Security:** Integrate KMS-managed keys for encryption at rest and enforce VPC-only access for all components.
