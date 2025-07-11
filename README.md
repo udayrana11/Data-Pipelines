@@ -1,4 +1,4 @@
-#Batch ETL Pipeline: End-of-Day P&L Reports & BI Dashboards
+# Batch ETL Pipeline: End-of-Day P&L Reports & BI Dashboards
 
 # Executive Summary
 
