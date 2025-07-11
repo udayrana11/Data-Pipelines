@@ -1,0 +1,96 @@
+# Event-Driven Pipeline: Order Processing & Inventory Sync
+
+---
+
+## 1. Executive Summary
+
+- The e-commerce platform requires a robust, loosely-coupled **event-driven** system to handle **order processing** and **inventory synchronization** in near-real time.  
+- This README outlines the high-level design, service responsibilities, key non-functional requirements, technology trade-offs, performance metrics, cost estimates, and monitoring approach—without code or folder details—tailored for an AI Product Management audience.
+
+---
+
+## 2. Architecture Overview
+
+![Event-Driven Architecture](./diagrams/event_driven_architecture.png)
+
+- **Trigger:** Customer places an order via frontend → triggers API Gateway/Lambda  
+- **Event Bus:** Amazon EventBridge receives `OrderPlaced` events  
+- **Orchestration:** Step Functions state machine sequences downstream tasks:  
+  1. **Payment Service** via Lambda  
+  2. **Inventory Service** updates stock via SQS queue  
+  3. **Shipping Notification** via SNS topic  
+- **Data Stores:**  
+  - Orders in DynamoDB  
+  - Inventory in RDS or DynamoDB  
+- **Consumers:** Downstream microservices, BI analytics, notification systems
+
+---
+
+## 3. Key Requirements & SLAs
+
+| Requirement                  | Target                                |
+| ---------------------------- | ------------------------------------- |
+| Throughput                   | 200 orders/sec peak                   |
+| Order Processing Latency     | ≤ 500 ms end-to-end                   |
+| Inventory Sync Latency       | ≤ 2 seconds                           |
+| Availability                 | 99.99 % uptime                        |
+| Cost Envelope                | ≤ $1,000 / month AWS spend             |
+| Failure Tolerance            | Durable retry with DLQs; < 1 % loss    |
+| Security & Compliance        | IAM least privilege; encrypted events |
+
+---
+
+## 4. Trade-off Analysis
+
+| Component              | Option A            | Option B             | Decision & Rationale                                                                                       |
+|------------------------|---------------------|----------------------|------------------------------------------------------------------------------------------------------------|
+| Orchestration          | AWS Step Functions  | Lambda choreographer | **Step Functions:** Visual workflows, built-in error handling & retries simplify complexity               |
+| Event Router           | EventBridge         | Kafka (MSK)          | **EventBridge:** Fully managed, schema registry, DLQ support                                              |
+| Messaging              | SQS standard queues | SNS topics (fan-out) | **Hybrid:** SQS for ordered, at-least-once inventory updates; SNS for fan-out notifications                |
+| Data Store for Orders  | DynamoDB            | RDS Aurora           | **DynamoDB:** Single-digit ms writes at scale; pay-per-request pricing under peak loads                    |
+
+---
+
+## 5. End-to-End Latency & Cost Estimate
+
+- **API Gateway → Lambda:** ~ 50 ms  
+- **Step Functions orchestration:** ~ 100 ms overhead  
+- **Payment & Inventory Lambdas:** ~ 200 ms each  
+- **SQS delivery:** ~ 100 ms  
+- **Total pipeline latency:** ~ 450 ms
+
+**Monthly AWS Spend Estimate**
+
+| Service                                    | Cost  |
+|--------------------------------------------|-------|
+| API Gateway & Lambda (~ 2 M invocations)   | ~$ 200 |
+| Step Functions state transitions (10 M)    | ~$ 100 |
+| EventBridge events (6 M)                   | ~$ 60  |
+| SQS & SNS                                  | ~$ 50  |
+| DynamoDB reads/writes                      | ~$ 300 |
+| **Total**                                  | **~$ 710** |
+
+> *Scales linearly with event volume; batching or reserved capacity can lower costs*
+
+---
+
+## 6. Monitoring & Alerts
+
+- **Metrics:** CloudWatch for Lambda durations, error rates, Step Functions executions, SQS queue depth  
+- **Logs:** Centralized via CloudWatch Logs + filter patterns  
+- **Alerts (via SNS):**  
+  - > 1 % Lambda error rate over 5 minutes  
+  - Step Functions execution failures  
+  - SQS DLQ messages > 0
+
+---
+
+## 7. Next Steps & Roadmap
+
+1. **Schema Registry:** Enforce event schemas in EventBridge registry  
+2. **Inventory Reconciliation:** Scheduled batch job for back-fill & corrections  
+3. **Analytics Integration:** Kinesis Data Firehose → S3 → Redshift for dashboards  
+4. **Cost Optimization:** DynamoDB on-demand or auto-scaling  
+5. **Enhanced Security:** VPC endpoints for SQS/EventBridge, AWS WAF on API Gateway
+
+---
