@@ -2,74 +2,81 @@
 
 ## 🧾 Executive Summary
 
-The finance team needs a reliable, automated pipeline to deliver **end-of-day Profit & Loss reports** and **business intelligence dashboards**, populated with transactional data from Aurora MySQL. These must be available by **03:00 UTC** daily.
+The finance team requires a reliable, automated pipeline to deliver **end-of-day Profit & Loss reports** and **business intelligence dashboards**, populated with transactional data from Aurora MySQL. These outputs must be available by **03:00 UTC** every day.
 
-This document outlines the high-level **architecture**, **non-functional requirements**, **performance metrics**, **cost estimates**, and **monitoring strategy**.
+This document outlines the pipeline’s **architecture**, **non-functional requirements**, **performance metrics**, **cost estimates**, and **monitoring strategy**.
 
+---
 
 ## 🏗️ 1. Architecture Overview
 
 - **⏰ Trigger:** Scheduled daily at **02:00 UTC**
-- **🧠 Orchestration:** Apache Airflow (MWAA) triggers a 3-step ETL workflow:
+- **🧠 Orchestration:** Apache Airflow (MWAA) manages a 3-step ETL process:
   1. **Extract:** Aurora MySQL → S3 (landing zone)
   2. **Load:** S3 → Redshift (raw schema) using `COPY`
   3. **Transform:** Redshift SQL jobs populate curated P&L tables
-- **📊 Consumers:** BI tools like Power BI / Tableau read from Redshift's curated schema
+- **📊 Consumers:** BI tools like Power BI and Tableau connect to Redshift’s curated schema
 
+---
 
 ## ✅ 2. Key Requirements & SLAs
 
 | Requirement            | Target                                        |
 |------------------------|-----------------------------------------------|
-| Data Freshness         | Reports ready by **03:00 UTC** daily         |
-| Daily Data Volume      | Up to **100 GB** of transaction data         |
-| End-to-End Latency     | ≤ **1 hour** (from 02:00 trigger)            |
-| Cost Envelope          | ≤ **$300/month** AWS budget (target)         |
-| Failure Tolerance      | ≥ **99.9%** success rate                     |
+| Data Freshness         | Reports ready by **03:00 UTC** daily          |
+| Daily Data Volume      | Up to **100 GB** of transaction data          |
+| End-to-End Latency     | ≤ **1 hour** (from 02:00 to dashboards live)  |
+| Cost Envelope          | ≤ **$300/month** AWS target budget            |
+| Failure Tolerance      | ≥ **99.9%** success rate                      |
 | Security & Compliance  | Encryption in transit & at rest, IAM least-privilege |
 
+---
 
 ## 🔍 3. Trade-off Analysis
 
 | Component              | Option A                            | Option B                          | ✅ Decision & Rationale                                                   |
 |------------------------|--------------------------------------|-----------------------------------|---------------------------------------------------------------------------|
-| Compute for Extraction | Glue Python Shell (on-demand)       | Glue Spark (cluster overhead)     | ✅ **Glue Python Shell:** Faster cold start, cost-effective for ≤50GB     |
-| Storage & Query Engine | Redshift (provisioned)              | Athena + S3                       | ✅ **Redshift:** Better performance for sub-hour queries                  |
-| Orchestration          | Self-managed Airflow                | MWAA (Managed Airflow)            | ✅ **MWAA:** AWS-managed, lower maintenance burden                        |
+| Compute for Extraction | Glue Python Shell (on-demand)       | Glue Spark (cluster overhead)     | ✅ **Glue Python Shell:** Lower cost and cold-start latency for ≤50 GB    |
+| Storage & Query Engine | Redshift (provisioned)              | Athena + S3                       | ✅ **Redshift:** Consistent BI performance and lower query latency        |
+| Orchestration          | Self-managed Airflow                | MWAA (Managed Airflow)            | ✅ **MWAA:** Reduced operational overhead with AWS-managed service        |
 
+---
 
 ## ⏱️ 4. End-to-End Latency & Cost Estimate
 
-- **🔄 Extract (Glue Python Shell):** 15 min / 50GB → ~$25/day
-- **📥 Load (Redshift COPY):** 5–10 min → negligible cost
-- **🧮 Transform (Redshift SQL):** 10 min → via reserved WLM queue
-- **⏱️ Total Runtime:** ~**30–40 minutes**
+- **🔄 Extract (Glue Python Shell):** ~15 min / 50 GB → ~$25/day  
+- **📥 Load (Redshift COPY):** ~5–10 min → negligible cost  
+- **🧮 Transform (Redshift SQL):** ~10 min via reserved WLM queue  
+- **⚡ Total Runtime:** ~**30–40 minutes**
 
-### 💸 Monthly AWS Cost Estimate
+### 💸 Estimated Monthly AWS Spend
 
-| Service                          | Estimated Cost |
-|----------------------------------|----------------|
-| Glue Python Shell workers        | ~$750          |
-| Redshift (ra3.large x2 reserved) | ~$150          |
-| S3 (storage + requests)          | ~$20           |
-| MWAA environment                 | ~$80           |
-| **Total Monthly Spend**          | **~$1,000**     |
+| Service                          | Cost Estimate |
+|----------------------------------|---------------|
+| Glue Python Shell workers        | ~$750         |
+| Redshift (ra3.large x2 reserved) | ~$150         |
+| S3 (storage + requests)          | ~$20          |
+| MWAA environment                 | ~$80          |
+| **Total Monthly Spend**          | **~$1,000**    |
 
+---
 
 ## 📡 5. Monitoring & Alerts
 
-- **🎯 Success Metrics:** Airflow DAG task success ≥ 99.9%
-- **📊 Latency Metrics:** Glue job durations & Redshift query times via CloudWatch
-- **🚨 Alerting (via SNS):**
-  - DAG failure or retries > 3
-  - Glue job exceeds 30 min
-  - Redshift COPY errors or WLM congestion
+- **🎯 Success Tracking:** Airflow DAG task success ≥ **99.9%**
+- **📊 Latency Metrics:** Glue job duration & Redshift WLM stats via CloudWatch
+- **🚨 Alerts via SNS:**
+  - DAG failures or retries > 3
+  - Glue job duration > 30 minutes
+  - Redshift COPY errors or WLM queue congestion
 
+---
 
 ## 🛣️ 6. Next Steps & Roadmap
 
-1. ✅ Implement **incremental loads** via watermarks to reduce ETL volume
-2. 📈 Upgrade to **larger Redshift nodes** for faster transform queries
-3. 💡 Explore **micro-batching** via Glue Spark streaming for near-real-time insights
-4. 💰 Offload low-priority dashboards to **Athena** for ad-hoc querying
+1. ✅ Implement **incremental loads** using watermark-based filtering  
+2. 📈 Upgrade to larger Redshift nodes for **sub-30 minute transformations**  
+3. 💡 Evaluate **Glue Spark Streaming** for micro-batching and near-real-time dashboards  
+4. 💰 Offload **ad-hoc and low-priority queries** to Athena for cost savings  
 
+---
