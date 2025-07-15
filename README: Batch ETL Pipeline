@@ -6,7 +6,6 @@ The finance team needs a reliable, automated pipeline to deliver **end-of-day Pr
 
 This document outlines the high-level **architecture**, **non-functional requirements**, **performance metrics**, **cost estimates**, and **monitoring strategy**.
 
----
 
 ## 🏗️ 1. Architecture Overview
 
@@ -17,7 +16,6 @@ This document outlines the high-level **architecture**, **non-functional require
   3. **Transform:** Redshift SQL jobs populate curated P&L tables
 - **📊 Consumers:** BI tools like Power BI / Tableau read from Redshift's curated schema
 
----
 
 ## ✅ 2. Key Requirements & SLAs
 
@@ -30,7 +28,6 @@ This document outlines the high-level **architecture**, **non-functional require
 | Failure Tolerance      | ≥ **99.9%** success rate                     |
 | Security & Compliance  | Encryption in transit & at rest, IAM least-privilege |
 
----
 
 ## 🔍 3. Trade-off Analysis
 
@@ -40,7 +37,6 @@ This document outlines the high-level **architecture**, **non-functional require
 | Storage & Query Engine | Redshift (provisioned)              | Athena + S3                       | ✅ **Redshift:** Better performance for sub-hour queries                  |
 | Orchestration          | Self-managed Airflow                | MWAA (Managed Airflow)            | ✅ **MWAA:** AWS-managed, lower maintenance burden                        |
 
----
 
 ## ⏱️ 4. End-to-End Latency & Cost Estimate
 
@@ -59,7 +55,6 @@ This document outlines the high-level **architecture**, **non-functional require
 | MWAA environment                 | ~$80           |
 | **Total Monthly Spend**          | **~$1,000**     |
 
----
 
 ## 📡 5. Monitoring & Alerts
 
@@ -70,7 +65,6 @@ This document outlines the high-level **architecture**, **non-functional require
   - Glue job exceeds 30 min
   - Redshift COPY errors or WLM congestion
 
----
 
 ## 🛣️ 6. Next Steps & Roadmap
 
@@ -79,4 +73,3 @@ This document outlines the high-level **architecture**, **non-functional require
 3. 💡 Explore **micro-batching** via Glue Spark streaming for near-real-time insights
 4. 💰 Offload low-priority dashboards to **Athena** for ad-hoc querying
 
----
